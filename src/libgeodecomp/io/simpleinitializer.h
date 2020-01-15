@@ -33,6 +33,11 @@ public:
         return steps;
     }
 
+    void setMaxSteps(unsigned newMaxSteps)
+    {
+        steps = newMaxSteps;
+    }
+  
     unsigned startStep() const
     {
         return 0;
@@ -42,7 +47,7 @@ protected:
     Coord<DIM> dimensions;
     unsigned steps;
 };
-
+  
 }
 
 #endif

@@ -70,6 +70,12 @@ public:
      */
     virtual unsigned maxSteps() const = 0;
 
+   /**
+    * (re)sets the time step at which the simulation using the
+    * initializer should terminate
+    */
+   virtual void setMaxSteps(unsigned newMaxSteps);
+
     Coord<DIM> normalize(const Coord<DIM>& coord) const
     {
         return Topology::normalize(coord, gridDimensions());

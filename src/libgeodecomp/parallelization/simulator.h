@@ -74,6 +74,11 @@ public:
         return stepNum;
     }
 
+    virtual void setMaxSteps(unsigned newMaxSteps)
+    {
+        initializer->setMaxSteps(newMaxSteps);
+    }
+  
     virtual InitPtr getInitializer() const
     {
         return initializer;

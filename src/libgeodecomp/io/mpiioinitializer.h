@@ -53,6 +53,11 @@ public:
         return maximumSteps;
     }
 
+    virtual void setMaxSteps(unsigned newMaxSteps)
+    {
+        maximumSteps = newMaxSteps;
+    }
+  
     virtual unsigned startStep() const
     {
         return currentStep;
