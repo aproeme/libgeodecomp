@@ -53,7 +53,7 @@ public:
         return maximumSteps;
     }
 
-    virtual void setMaxSteps(unsigned newMaxSteps)
+    void setMaxSteps(unsigned newMaxSteps)
     {
         maximumSteps = newMaxSteps;
     }

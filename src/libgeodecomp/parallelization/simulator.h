@@ -74,7 +74,7 @@ public:
         return stepNum;
     }
 
-    virtual void setMaxSteps(unsigned newMaxSteps)
+    void setMaxSteps(unsigned newMaxSteps)
     {
         initializer->setMaxSteps(newMaxSteps);
     }
