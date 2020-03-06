@@ -88,6 +88,7 @@ find_package(SCOTCH)
 find_package(Silo)
 find_package(Qt5 COMPONENTS OpenGL Gui Core Widgets)
 find_package(VisIt)
+find_package(PnetCDF)
 
 # if a package was not found it's safer to set the corresponding
 # variable to false, this avoids undefined/unintended behavior in some
@@ -146,6 +147,10 @@ endif()
 
 if(NOT DEFINED Silo_FOUND)
   set(Silo_FOUND false)
+endif()
+
+if(NOT DEFINED PnetCDF_C_FOUND)
+  set(PnetCDF_FOUND false)
 endif()
 
 #============= 2. DETECT DEFAULTS ====================================
@@ -315,6 +320,8 @@ lgd_add_config_option(WITH_TYPEMAPS "Controls whether the build system should re
 lgd_add_config_option(WITH_VISIT "Activate code parts which use VisitWriter and SerialVisitWriter" ${VISIT_FOUND} true)
 
 lgd_add_config_option(WITH_CPP14 "LibGeoDecomp is largely written in C++98, but some components use language features from a newer standard. This option will enable those." ${SUPPORTS_CPP14} true)
+
+lgd_add_config_option(WITH_PNETCDF "Build with support for parallel IO using PnetCDF." ${PnetCDF_C_FOUND} false)
 
 lgd_print_options()
 lgd_dump_config("config.h")

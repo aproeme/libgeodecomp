@@ -160,6 +160,11 @@ as the standard compiler:
 
   cmake -DCMAKE_CXX_COMPILER=/usr/x86_64-pc-linux-gnu/gcc-bin/4.7.0/g++ ../../
 
+To build with support for parallel IO based on PnetCDF, specify the
+path to a PnetCDF installation using the PnetCDF_PATH variable:
+
+  cmake -DPnetCDF_PATH=/home/pnetcdf/1.1.2 ../../
+
 After your build is complete, you might want to ensure that
 LibGeoDecomp is functioning as advertised by running its unit tests:
 
