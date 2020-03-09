@@ -1,4 +1,4 @@
-#ifndef LIBGEODECOMP_IO_PNETCDFWRITER_H
+#ifndef LIBGEODECOMP_IO_PNETCDFWRITER_HA
 #define LIBGEODECOMP_IO_PNETCDFWRITER_H
 
 #include <libgeodecomp/config.h>
@@ -11,6 +11,9 @@
 #include <libgeodecomp/communication/mpilayer.h>
 #include <libgeodecomp/io/parallelwriter.h>
 #include <libgeodecomp/misc/clonable.h>
+#include <libgeodecomp/storage/selector.h>
+
+#include <iomanip>
 
 using namespace PnetCDF;
 using namespace PnetCDF::exceptions;
@@ -45,7 +48,7 @@ public:
 	const std::string& prefix,
 	const unsigned period,
 	const MPI_Comm& communicator = MPI_COMM_WORLD) :
-	Clonable<PnetCDFWriter<CELL_TYPE>, PnetCDFWriter<CELL_TYPE> >(prefix, period),
+	Clonable<ParallelWriter<CELL_TYPE>, PnetCDFWriter<CELL_TYPE> >(prefix, period),
 	gridDimensions(gridDimensions),
 	selector(selector),
 	comm(communicator)
@@ -54,10 +57,22 @@ public:
 	    createFile();
 	    writeHeader();
 	}
-
+    
+    
+    virtual void stepFinished(
+        const typename ParallelWriter<CELL_TYPE>::GridType& grid,
+        const Region<Topology::DIM>& validRegion,
+        const Coord<Topology::DIM>& globalGridDimensions,
+        unsigned step,
+        WriterEvent event,
+        std::size_t rank,
+        bool lastCall)
+	{}
+    
+    
     
 private:
-    Coord<DIM>& gridDimensions;
+    Coord<DIM> gridDimensions;
     Selector<CELL_TYPE> selector;
     MPI_Comm comm;
     std::string filename;
@@ -94,11 +109,11 @@ private:
 		ncmpiDimensionNames[2] = "Y";
 		ncmpiDimensionNames[3] = "X";
 		
-		std::vector<NcmpiDim> ncmpiDimensions(DIM);
+		std::vector<NcmpiDim> ncmpiDimensions(DIM+1);
 		ncmpiDimensions[0] = ncFile.addDim(ncmpiDimensionNames[0], NC_UNLIMITED);
 		
-		for (int d = DIM-1; d > 0; d--) {
-		    ncmpiDimensions[d] = ncFile.addDim(ncmpiDimensionNames[d], gridDimensions[(DIM-1)-d]);
+		for (int d = 1; d <= DIM; d++) {
+		    ncmpiDimensions[d] = ncFile.addDim(ncmpiDimensionNames[d+3-DIM], gridDimensions[DIM-d]);
 		}
 	  
 		ncFile.addVar(selector.name(), ncmpiDouble, ncmpiDimensions);

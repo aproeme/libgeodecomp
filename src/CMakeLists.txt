@@ -332,6 +332,13 @@ if(WITH_VISIT)
   set(LIBGEODECOMP_LINK_LIBRARIES ${LIBGEODECOMP_LINK_LIBRARIES} ${VisIt_LIBRARIES} ${PYTHON_LIBRARIES} dl)
 endif()
 
+if(WITH_PNETCDF)
+  set(LIBGEODECOMP_LINK_LIBRARIES
+    ${LIBGEODECOMP_LINK_LIBRARIES}
+    ${PnetCDF_C_LIBRARIES})
+endif()
+
+
 target_link_libraries(geodecomp ${LIBGEODECOMP_LINK_LIBRARIES})
 
 #============= 6. INSTALLER CONFIG ===================================
