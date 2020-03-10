@@ -14,6 +14,7 @@
 #include <libgeodecomp/storage/selector.h>
 
 #include <iomanip>
+#include <filesystem>
 
 using namespace PnetCDF;
 using namespace PnetCDF::exceptions;
@@ -79,17 +80,10 @@ private:
     
     void createFile()
 	{
-	    try
-	    {
-		NcmpiFile ncFile(comm,
-				 filename,
-				 NcmpiFile::FileMode::newFile,
-				 NcmpiFile::FileFormat::classic2);
-	    }
-	    catch(NcmpiException& e)
-	    {
-		std::cout << "PnetCDF" << e.what() << " error code=" << e.errorCode() << " Error!\n";
-	    }
+	    NcmpiFile ncFile(comm,
+			     filename,
+			     NcmpiFile::FileMode::replace,
+			     NcmpiFile::FileFormat::classic2);
 	}
     
     // Define grid (i.e. Cell Member) time series variable in netCDF file header
@@ -120,7 +114,7 @@ private:
 	    }
 	    catch(NcmpiException& e)
 	    {
-		std::cout << "PnetCDF" << e.what() << " error code=" << e.errorCode() << " Error!\n";
+		std::cout << "PnetCDF" << e.what()  << " error code=" << e.errorCode() << " Error!\n";
 	    }
 	}
     
