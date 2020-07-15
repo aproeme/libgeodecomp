@@ -153,6 +153,7 @@ if(NOT DEFINED PnetCDF_C_FOUND)
   set(PnetCDF_FOUND false)
 endif()
 
+
 #============= 2. DETECT DEFAULTS ====================================
 set(RELEASE false)
 lgd_detect_distro()
