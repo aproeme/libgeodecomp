@@ -26,7 +26,7 @@ namespace LibGeoDecomp{
  * Writes simulation variables in parallel using pnetcdf (https://github.com/Parallel-NetCDF/PnetCDF)
  * Currently using NetCDF's CDF-2 64-bit offset format (PnetCDF::NcmpiFile::FileFormat::classic2)
  * Aims to adhere to the NetCDF CF convention data model (http://cfconventions.org/)
- *
+ * Modelled on BOVWriter
  */
 
 
@@ -59,7 +59,9 @@ public:
 	    createFile();
 	    writeHeader();
 	}
-    
+
+    // stepFinished function signature based on that in parallelmpiiwriter.h,
+    // which conforms to that specified in parallelwriter.h
     virtual void stepFinished(
         const typename ParallelWriter<CELL_TYPE>::GridType& grid,
         const Region<Topology::DIM>& validRegion,
@@ -128,6 +130,7 @@ private:
 	    timeVarId = timeVar.getId();
 	}
 
+
     template<typename GRID_TYPE>
     void writeRegion(
 	unsigned step,
@@ -141,13 +144,11 @@ private:
 			 NcmpiFile::FileFormat::classic2);
 	
 	NcmpiVar timeVar = NcmpiVar(ncFile, timeVarId);
-	// step is unsigned (= unsigned int), which is only supported from netCDF-4/HDF5 files, not prior
-	// so need to convert, choose long to accommodate (specific as ncmpiInt64 i.e. ncmpi_INT64 in netCDF header under assumption of LP64)
-	float s = step;
+	float stepFloat = step;
 	std::cout << "step = " << step << std::endl;
 	vector<MPI_Offset> index(1); 
-	index[0] = step; // implicit conversion from long s to MPI_Offset taking place? 
-	timeVar.putVar_all(index, step);
+	index[0] = stepFloat; 
+	timeVar.putVar_all(index, stepFloat);
 	
 	
 	NcmpiVar netCDFVar = NcmpiVar(ncFile, varId);
@@ -162,7 +163,7 @@ private:
 	count[0] = 1; 
 	count[1] = 1; 
 	
-	// In 2D, this iterates over X-streaks (each iteration is a different Y)
+	// In 2D, this iterates over streaks of x-indexed values (each iteration is a different y)
 	for (typename Region<DIM>::StreakIterator i = region.beginStreak();
 	     i != region.endStreak();
              ++i) {
@@ -170,16 +171,15 @@ private:
             // topologies the coordnates may exceed the bounding box
             // (especially negative coordnates may occurr).
             Coord<DIM> coord = Topology::normalize(i->origin, dimensions);
-	    int length = i->endX - i->origin.x();
-
+	    int xlength = i->endX - i->origin.x();
+	    
 	    // GENERALISE TO DIM NOT EQUAL TO 2 (push back onto vector?)
 	    start[1] = coord.y(); // Y start index for DIM = 2, or for Z for DIM = 3
-	    count[2] = length;
+	    count[2] = xlength;
 	    
-            //int dataComponents = selector.arity();
-	    //MPI_Offset index = coord.toIndex(dimensions) * varLength * dataComponents;
+	    std::size_t byteSize = xlength;
 	    
-            std::size_t byteSize = length * selector.sizeOfExternal();
+	    std::cout << "xlength = " + std::to_string(xlength) + '\n';
 	    
             if (buffer.size() != byteSize) {
                 buffer.resize(byteSize);
@@ -188,6 +188,39 @@ private:
             Region<DIM> tempRegion;
             tempRegion << *i;
             grid.saveMember(&buffer[0], MemoryLocation::HOST, selector, tempRegion);
+
+	    //
+	    //  FIGURE OUT WHY WITH HIPAR SIMULATOR THE STREAK IS OF SIZE (XLENGTH) 1
+	    //  WHEREAS WITH STRIPING SIMULATOR WORKS FINE (XLENGTH = entire x length of grid)
+	    // 
+	    
+	    
+	    std::string streak = "";
+	    
+	    //std::cout << "rank " + std::to_string(MPILayer().rank())	\
+//		+ ": " + '\n' + "buffer.size()  = " + std::to_string(buffer.size()) + '\n'; 
+	    
+	    
+	    
+	    // PRINT OUT BUFFER
+	    for (unsigned int index=0; index<buffer.size(); index++)
+	    {
+		streak += std::to_string(buffer[index]) + " ";
+	    }
+	    std::cout << "rank " + std::to_string(MPILayer().rank())	\
+		+ ": streak = " + streak + '\n'; 
+	    
+	    
+	    
+	    /*std::cout << "rank " + std::to_string(MPILayer().rank())	\
+		+ ": start[0] = step = " + std::to_string(start[0]) \
+		+ ", start[1] = coord.y() = " + std::to_string(start[1]) \
+		+ ", count[2] = xlength = " + std::to_string(count[2]) \
+		+ ", buffer[0] = " + std::to_string(buffer[0]) \
+		+ ", i->endX = " + std::to_string(i->endX) \
+		+ ", i->origin.x() = " + std::to_string(i->origin.x()) \
+		+ '\n';*/
+
 	    netCDFVar.putVar_all(start, count, &buffer[0]);
 	}
     }
