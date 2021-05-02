@@ -112,10 +112,14 @@ private:
 	    ncmpiDimensionNames[1] = "Z";
 	    ncmpiDimensionNames[2] = "Y";
 	    ncmpiDimensionNames[3] = "X";
-	    
+
 	    std::vector<NcmpiDim> ncmpiDimensions(DIM+1);
+
+	    // First define time dimension, T, to have unlimited extent
 	    ncmpiDimensions[0] = ncFile.addDim(ncmpiDimensionNames[0], NC_UNLIMITED);
-	    
+
+	    // Then define the other dimensions to have extents
+	    // defined by LibGeoDecomp grid dimensions
 	    for (int d = 1; d <= DIM; d++) {
 		ncmpiDimensions[d] = ncFile.addDim(ncmpiDimensionNames[d+3-DIM], gridDimensions[DIM-d]);
 	    }
