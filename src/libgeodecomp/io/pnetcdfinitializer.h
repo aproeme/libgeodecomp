@@ -4,6 +4,7 @@
 #include <libgeodecomp/config.h>
 #ifdef LIBGEODECOMP_WITH_MPI
 
+#include <iostream>
 #include <mpi.h>
 
 // To do: include pnetcdf once in libgeodecomp.h
@@ -13,8 +14,9 @@
 #include <pnetcdf>
 #endif
 
+#include <libgeodecomp/communication/mpilayer.h>
 #include <libgeodecomp/io/initializer.h>
-
+#include <libgeodecomp/storage/selector.h>
 
 using namespace PnetCDF;
 using namespace PnetCDF::exceptions;
@@ -40,10 +42,12 @@ public:
     
     explicit PnetCDFInitializer(
 	const std::string& file,
-	const std::string& varname,
+	const Selector<CELL_TYPE>& selector,
+	const std::string& ncVariableName,
 	const unsigned steps) : 
 	file(file),
-	varname(varname),
+	selector(selector),
+	ncVariableName(ncVariableName),
 	steps(steps)
 	{
 	    readHeader();
@@ -56,25 +60,25 @@ public:
 			     NcmpiFile::FileMode::read,
 			     NcmpiFile::FileFormat::classic2);
 	    
-	    // To do: generalise 
+	    // To do: generalise (dimensions, dimension names, including long/lat)
 	    NcmpiDim yDim = ncFile.getDim("y");
 	    NcmpiDim xDim = ncFile.getDim("x");
 	    
 	    MPI_Offset yExtent = yDim.getSize();
 	    MPI_Offset xExtent = xDim.getSize();
 	    
-	    dimensions = Coord<DIM>(xExtent, yExtent);
+	   globalDimensions = Coord<DIM>(xExtent, yExtent);
 	    
 	    if (MPILayer().rank() == 0) {
 		std::cout << "Reading " + file << std::endl;
-		std::cout << "Dimensions: " + dimensions.toString() << std::endl; 
+		std::cout << "Dimensions: " + globalDimensions.toString() << std::endl; 
 	    }
 	}
 
     
     Coord<DIM> gridDimensions() const
 	{
-	    return dimensions;
+	    return globalDimensions;
 	}
     
     unsigned maxSteps() const
@@ -87,37 +91,38 @@ public:
 	    return 0;
 	}
     
-    virtual void grid(GridBase<CELL_TYPE, DIM> *target)
+    virtual void grid(GridBase<CELL_TYPE, DIM> *localGrid)
 	{
 	    Region<DIM> region;
-	    region << target->boundingBox();
-	    readRegion(target, file, region);
+	    region << localGrid->boundingBox();
+	    initialiseRegion(region, localGrid, file);
 	} 
     
     template<typename GRID_TYPE, int DIM>
-    void readRegion(GRID_TYPE *grid,
-		    const std::string& filename,
-		    const Region<DIM>& region)
+    void initialiseRegion(const Region<DIM>& region,
+			  GRID_TYPE* localGrid,
+			  const std::string& file)
 	{
 	    NcmpiFile ncFile(MPI_COMM_WORLD,
 			     file,
 			     NcmpiFile::FileMode::read,
 			     NcmpiFile::FileFormat::classic2);
 	    
-	    NcmpiVar ncVar = ncFile.getVar(varname);
+	    NcmpiVar ncVar = ncFile.getVar(ncVariableName);
 
 	    // get the first cell in this rank's grid,
 	    // determine its x and y coordinates,
-	    // use these to define start point for getVar call
-	    // to fetch data from netcdf file
-	    CoordBox<DIM> box = grid->boundingBox();
+	    // use these to define start point and count
+	    // for later getVar call that extracts data
+	    // from appropriate part of netcdf file
+	    CoordBox<DIM> box = localGrid->boundingBox();
 	    
 	    std::vector<MPI_Offset> start(DIM), count(DIM);
 	    start[0] = box.origin.y();
 	    start[1] = box.origin.x();
 	    count[0] = box.dimensions.y();
 	    count[1] = box.dimensions.x();
-	    
+
 	    std::ostringstream debug;
 	    debug << "rank" << MPILayer().rank() << ": start=" << start << ", count=" << count << std::endl;
 	    std::cout << debug.str();
@@ -128,21 +133,18 @@ public:
 	    debug << "rank" << MPILayer().rank() << ": " << buffer << std::endl;
 	    std::cout << debug.str();
 	    
-	    
-	    //grid.loadMember();
-	    
-	    // grid->set(
-	    // Work backwards 
+	    localGrid->loadMember(&buffer[0], MemoryLocation::HOST, selector, region);
 	}
 		    
     
-
+protected:
+    unsigned steps;
 
 private:
     std::string file;
-    std::string varname;
-    unsigned steps;
-    Coord<DIM> dimensions;
+    std::string ncVariableName;
+    Coord<DIM> globalDimensions;
+    Selector<CELL_TYPE> selector;
 
 };
 

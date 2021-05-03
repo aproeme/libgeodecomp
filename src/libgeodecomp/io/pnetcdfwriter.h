@@ -19,7 +19,6 @@
 #include <libgeodecomp/misc/clonable.h>
 #include <libgeodecomp/storage/selector.h>
 
-#include <iomanip>
 #include <filesystem>
 
 using namespace PnetCDF;
@@ -84,16 +83,6 @@ public:
 	    
 	    writeRegion(step, globalDimensions, grid, validRegion);
 	}
-    
-private:
-    MPIIO<CELL_TYPE, Topology> mpiio;
-    Coord<DIM> gridDimensions;
-    Selector<CELL_TYPE> selector;
-    MPI_Comm comm;
-    MPI_Datatype datatype;
-    std::string filename;
-    int varId, timeVarId;
-    
     
     void createFile()
 	{
@@ -178,8 +167,8 @@ private:
 	     i != region.endStreak();
              ++i) {
             // the coords need to be normalized because on torus
-            // topologies the coordnates may exceed the bounding box
-            // (especially negative coordnates may occurr).
+            // topologies the coordinates may exceed the bounding box
+            // (especially negative coordinates may occurr).
             Coord<DIM> coord = Topology::normalize(i->origin, dimensions);
 	    int xlength = i->endX - i->origin.x();
 	    
@@ -209,6 +198,16 @@ private:
 	    netCDFVar.putVar_all(start, count, &buffer[0]);
 	}
     }
+
+private:
+    MPIIO<CELL_TYPE, Topology> mpiio;
+    Coord<DIM> gridDimensions;
+    Selector<CELL_TYPE> selector;
+    MPI_Comm comm;
+    MPI_Datatype datatype;
+    std::string filename;
+    int varId, timeVarId;
+    
 };
   
 }
