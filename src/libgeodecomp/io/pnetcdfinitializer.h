@@ -40,8 +40,10 @@ public:
     
     explicit PnetCDFInitializer(
 	const std::string& file,
+	const std::string& varname,
 	const unsigned steps) : 
 	file(file),
+	varname(varname),
 	steps(steps)
 	{
 	    readHeader();
@@ -53,10 +55,8 @@ public:
 			     file,
 			     NcmpiFile::FileMode::read,
 			     NcmpiFile::FileFormat::classic2);
-
 	    
-	    
-	    // Assume 2D grid
+	    // To do: generalise 
 	    NcmpiDim yDim = ncFile.getDim("y");
 	    NcmpiDim xDim = ncFile.getDim("x");
 	    
@@ -67,14 +67,11 @@ public:
 	    
 	    if (MPILayer().rank() == 0) {
 		std::cout << "Reading " + file << std::endl;
-		std::cout << "Extent in X dimension: " << xExtent << std::endl;
-		std::cout << "Extent in Y dimension: " << yExtent << std::endl;
 		std::cout << "Dimensions: " + dimensions.toString() << std::endl; 
 	    }
-	    
 	}
 
-
+    
     Coord<DIM> gridDimensions() const
 	{
 	    return dimensions;
@@ -84,23 +81,61 @@ public:
 	{
 	    return steps;
 	}
-
+    
     unsigned startStep() const
 	{
 	    return 0;
 	}
-
     
     virtual void grid(GridBase<CELL_TYPE, DIM> *target)
 	{
-	    return;
+	    Region<DIM> region;
+	    region << target->boundingBox();
+	    readRegion(target, file, region);
 	} 
     
+    template<typename GRID_TYPE, int DIM>
+    void readRegion(GRID_TYPE *grid,
+		    const std::string& filename,
+		    const Region<DIM>& region)
+	{
+	    NcmpiFile ncFile(MPI_COMM_WORLD,
+			     file,
+			     NcmpiFile::FileMode::read,
+			     NcmpiFile::FileFormat::classic2);
+	    
+	    NcmpiVar ncVar = ncFile.getVar(varname);
+
+	    // get the first cell in this rank's grid,
+	    // determine its x and y coordinates,
+	    // use these to define start point for getVar call
+	    // to fetch data from netcdf file
+	    CoordBox<DIM> box = grid->boundingBox();
+	    
+	    std::vector<MPI_Offset> start(DIM), count(DIM);
+	    start[0] = box.origin.x();
+	    start[1] = box.origin.y();
+	    count[0] = box.dimensions.x()-1;
+	    count[1] = box.dimensions.y()-1;
+
+	    
+	    std::ostringstream debug;
+	    debug << "rank" << MPILayer().rank() << ": start=" << start << ", count=" << count << std::endl;
+	    std::cout << debug.str(); 
+	    
+	    
+	    //ncVar.getVar_all();
+	    
+	    // grid->set(
+	    // Work backwards 
+	}
+		    
     
 
 
 private:
     std::string file;
+    std::string varname;
     unsigned steps;
     Coord<DIM> dimensions;
 
