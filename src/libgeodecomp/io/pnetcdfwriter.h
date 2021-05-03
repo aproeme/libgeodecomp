@@ -198,39 +198,14 @@ private:
             Region<DIM> tempRegion;
             tempRegion << *i;
             grid.saveMember(&buffer[0], MemoryLocation::HOST, selector, tempRegion);
-
-	    //
-	    //  FIGURE OUT WHY WITH HIPAR SIMULATOR THE STREAK IS OF SIZE (XLENGTH) 1
-	    //  WHEREAS WITH STRIPING SIMULATOR WORKS FINE (XLENGTH = entire x length of grid)
-	    // 
 	    
+	    //  With HiPar simulator streaks isn of size (xlength) 1
+	    //  whereas with Striping simulator works fine (xlength = entire X-length of grid
 	    
-	    std::string streak = "";
+	    std::ostringstream debug;
+	    debug << "rank" << MPILayer().rank() << ": " << buffer << std::endl;
+	    std::cout << debug.str();
 	    
-	    //std::cout << "rank " + std::to_string(MPILayer().rank())	\
-//		+ ": " + '\n' + "buffer.size()  = " + std::to_string(buffer.size()) + '\n'; 
-	    
-	    
-	    
-	    // PRINT OUT BUFFER
-	    for (unsigned int index=0; index<buffer.size(); index++)
-	    {
-		streak += std::to_string(buffer[index]) + " ";
-	    }
-	    std::cout << "rank " + std::to_string(MPILayer().rank())	\
-		+ ": streak = " + streak + '\n'; 
-	    
-	    
-	    
-	    /*std::cout << "rank " + std::to_string(MPILayer().rank())	\
-		+ ": start[0] = step = " + std::to_string(start[0]) \
-		+ ", start[1] = coord.y() = " + std::to_string(start[1]) \
-		+ ", count[2] = xlength = " + std::to_string(count[2]) \
-		+ ", buffer[0] = " + std::to_string(buffer[0]) \
-		+ ", i->endX = " + std::to_string(i->endX) \
-		+ ", i->origin.x() = " + std::to_string(i->origin.x()) \
-		+ '\n';*/
-
 	    netCDFVar.putVar_all(start, count, &buffer[0]);
 	}
     }

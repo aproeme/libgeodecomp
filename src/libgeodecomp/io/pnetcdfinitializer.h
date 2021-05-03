@@ -113,18 +113,23 @@ public:
 	    CoordBox<DIM> box = grid->boundingBox();
 	    
 	    std::vector<MPI_Offset> start(DIM), count(DIM);
-	    start[0] = box.origin.x();
-	    start[1] = box.origin.y();
-	    count[0] = box.dimensions.x()-1;
-	    count[1] = box.dimensions.y()-1;
-
+	    start[0] = box.origin.y();
+	    start[1] = box.origin.x();
+	    count[0] = box.dimensions.y();
+	    count[1] = box.dimensions.x();
 	    
 	    std::ostringstream debug;
 	    debug << "rank" << MPILayer().rank() << ": start=" << start << ", count=" << count << std::endl;
-	    std::cout << debug.str(); 
+	    std::cout << debug.str();
+	    
+	    std::vector<double> buffer;
+	    buffer.resize(count[0]*count[1]);
+	    ncVar.getVar_all(start, count, &buffer[0]);
+	    debug << "rank" << MPILayer().rank() << ": " << buffer << std::endl;
+	    std::cout << debug.str();
 	    
 	    
-	    //ncVar.getVar_all();
+	    //grid.loadMember();
 	    
 	    // grid->set(
 	    // Work backwards 
