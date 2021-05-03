@@ -5,7 +5,13 @@
 #ifdef LIBGEODECOMP_WITH_MPI
 
 #include <mpi.h>
+
+// To do: include pnetcdf once in libgeodecomp.h
+//        instead of working with include guards
+#ifndef LIBGEODECOMP_INCLUDED_PNETCDF
+#define LIBGEODECOMP_INCLUDED_PNETCDF
 #include <pnetcdf>
+#endif
 
 #include <libgeodecomp/io/initializer.h>
 
@@ -25,65 +31,82 @@ namespace LibGeoDecomp {
  */
 
 
-    
-    
 template<typename CELL_TYPE>
 class PnetCDFInitializer : public Initializer<CELL_TYPE> 
 {
 public:
-    typedef typename PnetCDFInitializer<CELL_TYPE>::Topology Topology;
+    typedef typename Initializer<CELL_TYPE>::Topology Topology;
     static const int DIM = Topology::DIM;
     
     explicit PnetCDFInitializer(
-	const std::string& filename,
-	const Selector<CELL_TYPE>& selector,
-	const MPI_Comm& communicator = MPI_COMM_WORLD) :
-	file(filename),
-	selector(selector),
-	comm(commmunicator)
+	const std::string& file,
+	const unsigned steps) : 
+	file(file),
+	steps(steps)
 	{
-	    openFile();
+	    readHeader();
 	}
 
     void readHeader()
 	{
-	    NcmpiFile ncFile(comm,
-			     filename,
+	    NcmpiFile ncFile(MPI_COMM_WORLD,
+			     file,
 			     NcmpiFile::FileMode::read,
 			     NcmpiFile::FileFormat::classic2);
+
+	    
 	    
 	    // Assume 2D grid
-	    NcmpiDim yDim = ncFile.getDim("Y");
-	    NcmpiDim xDim = ncFile.getDime("X");
-
-	    int yExtent = yDim.getSize();
-	    int xExtent = xDim.getSize();
-	    	    
+	    NcmpiDim yDim = ncFile.getDim("y");
+	    NcmpiDim xDim = ncFile.getDim("x");
+	    
+	    MPI_Offset yExtent = yDim.getSize();
+	    MPI_Offset xExtent = xDim.getSize();
+	    
+	    dimensions = Coord<DIM>(xExtent, yExtent);
+	    
 	    if (MPILayer().rank() == 0) {
-		std::cout << "Reading " + filename << std::endl;
-		std::cout << "Extent in X dimension: " + xExtent << std::endl;
-		std::cout << "Extent in Y dimension: " + yExtent << std::endl;
+		std::cout << "Reading " + file << std::endl;
+		std::cout << "Extent in X dimension: " << xExtent << std::endl;
+		std::cout << "Extent in Y dimension: " << yExtent << std::endl;
+		std::cout << "Dimensions: " + dimensions.toString() << std::endl; 
 	    }
 	    
 	}
+
+
+    Coord<DIM> gridDimensions() const
+	{
+	    return dimensions;
+	}
+    
+    unsigned maxSteps() const
+	{
+	    return steps;
+	}
+
+    unsigned startStep() const
+	{
+	    return 0;
+	}
+
     
     virtual void grid(GridBase<CELL_TYPE, DIM> *target)
-    {
-        Region<DIM> region;
-        region << target->boundingBox();
-        //mpiiop.readRegion(target, file, region, communicator, datatype);
-    }
-
+	{
+	    return;
+	} 
+    
     
 
 
 private:
     std::string file;
-    Selector<CELL_TYPE> selector;
-    MPI_Comm comm;
-	
-	
+    unsigned steps;
+    Coord<DIM> dimensions;
+
+};
 
 }
 
 #endif 
+#endif

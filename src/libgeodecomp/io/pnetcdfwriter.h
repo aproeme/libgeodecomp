@@ -6,7 +6,13 @@
 
 #include <iostream>
 #include <mpi.h>
+
+// To do: include pnetcdf once in libgeodecomp.h
+//        instead of working with include guards
+#ifndef LIBGEODECOMP_INCLUDED_PNETCDF
+#define LIBGEODECOMP_INCLUDED_PNETCDF
 #include <pnetcdf>
+#endif
 
 #include <libgeodecomp/communication/mpilayer.h>
 #include <libgeodecomp/io/parallelwriter.h>
