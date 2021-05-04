@@ -70,7 +70,7 @@ public:
 	   globalDimensions = Coord<DIM>(xExtent, yExtent);
 	    
 	    if (MPILayer().rank() == 0) {
-		std::cout << "Reading " + file << std::endl;
+		std::cout << "Initialising grid from: " + file << std::endl;
 		std::cout << "Dimensions: " + globalDimensions.toString() << std::endl; 
 	    }
 	}
@@ -143,12 +143,12 @@ public:
 		    
     
 protected:
+    Coord<DIM> globalDimensions;    
     unsigned steps;
 
 private:
     std::string file;
     std::string ncVariableName;
-    Coord<DIM> globalDimensions;
     Selector<CELL_TYPE> selector;
 
 };

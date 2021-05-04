@@ -53,16 +53,23 @@ public:
 	const Selector<CELL_TYPE>& selector,
 	const std::string& prefix,
 	const unsigned period,
+	const unsigned steps,
 	const MPI_Comm& communicator = MPI_COMM_WORLD) :
 	Clonable<ParallelWriter<CELL_TYPE>, PnetCDFWriter<CELL_TYPE> >(prefix, period),
 	globalDimensions(globalDimensions),
 	selector(selector),
+	steps(steps),
 	comm(communicator),
 	datatype(selector.mpiDatatype())
 	{
 	    filename = selector.name() + ".nc";
+	    restartFilename = selector.name() + "_restart.nc";
+		
 	    createFile();
 	    writeHeader();
+
+	    createRestartFile();
+	    writeRestartHeader();
 	}
 
     // stepFinished function signature based on that in parallelmpiiwriter.h,
@@ -80,8 +87,13 @@ public:
 	    {
 		return;
 	    }
-	    
+
 	    writeRegion(step, globalDimensions, localGrid, validRegion);
+
+	    if (step == steps)
+	    {
+		writeRestartRegion(globalDimensions, localGrid, validRegion);
+	    }
 	}
     
     void createFile()
@@ -93,7 +105,16 @@ public:
 
 	}
     
-    // Define grid (i.e. Cell Member) time series variable in netCDF file header
+    void createRestartFile()
+	{
+	    NcmpiFile ncFile(comm,
+			     restartFilename,
+			     NcmpiFile::FileMode::replace,
+			     NcmpiFile::FileFormat::classic2);
+
+	}
+    
+    
     void writeHeader()
 	{
 	    NcmpiFile ncFile(comm,
@@ -103,10 +124,10 @@ public:
 	    
 	    std::vector<std::string> ncmpiDimensionNames(4);
             // ordered according to CF convention
-	    ncmpiDimensionNames[0] = "T";
-	    ncmpiDimensionNames[1] = "Z";
-	    ncmpiDimensionNames[2] = "Y";
-	    ncmpiDimensionNames[3] = "X";
+	    ncmpiDimensionNames[0] = "t";
+	    ncmpiDimensionNames[1] = "z";
+	    ncmpiDimensionNames[2] = "y";
+	    ncmpiDimensionNames[3] = "x";
 
 	    std::vector<NcmpiDim> ncmpiDimensions(DIM+1);
 
@@ -128,7 +149,32 @@ public:
 	    varId = var.getId();
 	    timeVarId = timeVar.getId();
 	}
-
+    
+    
+    void writeRestartHeader()
+	{
+	    NcmpiFile ncFile(comm,
+			     restartFilename,
+			     NcmpiFile::FileMode::write,
+			     NcmpiFile::FileFormat::classic2);
+	    
+	    std::vector<std::string> ncmpiDimensionNames(3);
+            // ordered according to CF convention
+	    ncmpiDimensionNames[0] = "z";
+	    ncmpiDimensionNames[1] = "y";
+	    ncmpiDimensionNames[2] = "x";
+	    
+	    std::vector<NcmpiDim> ncmpiDimensions(DIM);
+	    
+	    for (int d = 0; d < DIM; d++) {
+		ncmpiDimensions[d] = ncFile.addDim(ncmpiDimensionNames[d+3-DIM], globalDimensions[DIM-d-1]);
+	    }
+	    
+	    NcmpiVar restartVar = ncFile.addVar(selector.name(), ncmpiDouble, ncmpiDimensions);
+	    restartVarId = restartVar.getId();
+	}
+    
+    
 
     template<typename GRID_TYPE>
     void writeRegion(
@@ -183,22 +229,82 @@ public:
             tempRegion << *i;
             localGrid.saveMember(&buffer[0], MemoryLocation::HOST, selector, tempRegion);
 	    
-	    //  With HiPar simulator streaks isn of size (xlength) 1
-	    //  whereas with Striping simulator works fine (xlength = entire X-length of grid
-
 	    netCDFVar.putVar_all(start, count, &buffer[0]);
+	}
+    }
+
+    
+template<typename GRID_TYPE>
+    void writeRestartRegion(
+        const Coord<DIM>& globalDimensions,
+        const GRID_TYPE& localGrid,
+        const Region<DIM>& region)
+    {
+	NcmpiFile ncFile(comm,
+			 restartFilename,
+			 NcmpiFile::FileMode::write,
+			 NcmpiFile::FileFormat::classic2);
+	
+	NcmpiVar restartVar = NcmpiVar(ncFile, restartVarId);
+
+	std::vector<double> buffer;
+	vector<MPI_Offset> start(DIM);
+	vector<MPI_Offset> count(DIM);
+	
+	// In 2D, this iterates over streaks of x-indexed values (each iteration is a different y)
+	for (typename Region<DIM>::StreakIterator i = region.beginStreak();
+	     i != region.endStreak();
+             ++i) {
+            // the coords need to be normalized because on torus
+            // topologies the coordinates may exceed the bounding box
+            // (especially negative coordinates may occurr).
+            Coord<DIM> coord = Topology::normalize(i->origin, globalDimensions);
+	    int xlength = i->endX - i->origin.x();
+	    
+	    // To do: generalise
+	    start[0] = coord.y(); // Y start index for DIM = 2, or for Z for DIM = 3
+	    start[1] = 0; // X start index in 2D, = 0 for each streak iteration
+	    count[0] = 1; 
+	    count[1] = xlength;
+	    
+	    // Uncomment to debug
+	    /*std::ostringstream debug1;
+	    debug1 << "NetCDF write rank" << MPILayer().rank() << ": start=" << start << ", count=" << count << std::endl;
+	    std::cout << debug1.str();*/
+	    
+	    
+	    std::size_t byteSize = xlength;
+	    
+	    if (buffer.size() != byteSize) {
+                buffer.resize(byteSize);
+            }
+	    
+            Region<DIM> tempRegion;
+            tempRegion << *i;
+            localGrid.saveMember(&buffer[0], MemoryLocation::HOST, selector, tempRegion);
+
+	    // Uncomment to debug
+	    /*std::ostringstream debug2;
+	    debug2 << "NetCDF write rank" << MPILayer().rank() << " netCDF write buffer: " << buffer << std::endl;
+	    std::cout << debug2.str();*/
+	    
+	    
+	    restartVar.putVar_all(start, count, &buffer[0]);
 
 	}
     }
 
+
+    
 private:
     MPIIO<CELL_TYPE, Topology> mpiio;
     Coord<DIM> globalDimensions;
     Selector<CELL_TYPE> selector;
     MPI_Comm comm;
     MPI_Datatype datatype;
-    std::string filename;
-    int varId, timeVarId;
+    std::string filename, restartFilename;
+    int varId, timeVarId, restartVarId;
+    unsigned steps;
     
 };
   
