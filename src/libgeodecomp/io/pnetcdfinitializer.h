@@ -123,15 +123,20 @@ public:
 	    count[0] = box.dimensions.y();
 	    count[1] = box.dimensions.x();
 
-	    std::ostringstream debug;
-	    debug << "rank" << MPILayer().rank() << ": start=" << start << ", count=" << count << std::endl;
-	    std::cout << debug.str();
+	    // Uncomment to debug
+	    //std::ostringstream debug1;
+	    //debug1 << "NetCDF read rank" << MPILayer().rank() << ": start=" << start << ", count=" << count << std::endl;
+	    //std::cout << debug1.str();
 	    
 	    std::vector<double> buffer;
 	    buffer.resize(count[0]*count[1]);
+
 	    ncVar.getVar_all(start, count, &buffer[0]);
-	    debug << "rank" << MPILayer().rank() << ": " << buffer << std::endl;
-	    std::cout << debug.str();
+
+	    // Uncomment to debug
+	    //std::ostringstream debug2;
+	    //debug2 << "NetCDF read rank" << MPILayer().rank() << " netCDF read buffer: " << buffer << std::endl;
+	    //std::cout << debug2.str();
 	    
 	    localGrid->loadMember(&buffer[0], MemoryLocation::HOST, selector, region);
 	}

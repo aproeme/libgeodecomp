@@ -49,13 +49,13 @@ public:
     static const int DIM = Topology::DIM;
     
     PnetCDFWriter(
-	const Coord<DIM>& gridDimensions,
+	const Coord<DIM>& globalDimensions,
 	const Selector<CELL_TYPE>& selector,
 	const std::string& prefix,
 	const unsigned period,
 	const MPI_Comm& communicator = MPI_COMM_WORLD) :
 	Clonable<ParallelWriter<CELL_TYPE>, PnetCDFWriter<CELL_TYPE> >(prefix, period),
-	gridDimensions(gridDimensions),
+	globalDimensions(globalDimensions),
 	selector(selector),
 	comm(communicator),
 	datatype(selector.mpiDatatype())
@@ -68,7 +68,7 @@ public:
     // stepFinished function signature based on that in parallelmpiiwriter.h,
     // which conforms to that specified in parallelwriter.h
     virtual void stepFinished(
-        const typename ParallelWriter<CELL_TYPE>::GridType& grid,
+        const typename ParallelWriter<CELL_TYPE>::GridType& localGrid,
         const Region<Topology::DIM>& validRegion,
         const Coord<Topology::DIM>& globalDimensions,
         unsigned step,
@@ -81,7 +81,7 @@ public:
 		return;
 	    }
 	    
-	    writeRegion(step, globalDimensions, grid, validRegion);
+	    writeRegion(step, globalDimensions, localGrid, validRegion);
 	}
     
     void createFile()
@@ -114,9 +114,9 @@ public:
 	    ncmpiDimensions[0] = ncFile.addDim(ncmpiDimensionNames[0], NC_UNLIMITED);
 
 	    // Then define the other dimensions to have extents
-	    // defined by LibGeoDecomp grid dimensions
+	    // defined by global LibGeoDecomp grid dimensions
 	    for (int d = 1; d <= DIM; d++) {
-		ncmpiDimensions[d] = ncFile.addDim(ncmpiDimensionNames[d+3-DIM], gridDimensions[DIM-d]);
+		ncmpiDimensions[d] = ncFile.addDim(ncmpiDimensionNames[d+3-DIM], globalDimensions[DIM-d]);
 	    }
 	    
 	    NcmpiVar var = ncFile.addVar(selector.name(), ncmpiDouble, ncmpiDimensions);
@@ -133,8 +133,8 @@ public:
     template<typename GRID_TYPE>
     void writeRegion(
 	unsigned step,
-        const Coord<DIM>& dimensions,
-        const GRID_TYPE& grid,
+        const Coord<DIM>& globalDimensions,
+        const GRID_TYPE& localGrid,
         const Region<DIM>& region)
     {
 	NcmpiFile ncFile(comm,
@@ -144,23 +144,16 @@ public:
 	
 	NcmpiVar timeVar = NcmpiVar(ncFile, timeVarId);
 	float stepFloat = step;
-	std::cout << "step = " << step << std::endl;
+
 	vector<MPI_Offset> index(1); 
 	index[0] = stepFloat; 
 	timeVar.putVar_all(index, stepFloat);
 	
-	
 	NcmpiVar netCDFVar = NcmpiVar(ncFile, varId);
-	MPI_Aint varLength = mpiio.getLength(datatype);
+
 	std::vector<double> buffer;
 	vector<MPI_Offset> start(DIM+1);
 	vector<MPI_Offset> count(DIM+1);
-	
-	start[0] = step; 
-	// GENERALISE TO DIM NOT EQUAL TO 2 (push back onto vector?)
-	start[2] = 0; // X start index in 2D, = 0 for each streak iteration
-	count[0] = 1; 
-	count[1] = 1; 
 	
 	// In 2D, this iterates over streaks of x-indexed values (each iteration is a different y)
 	for (typename Region<DIM>::StreakIterator i = region.beginStreak();
@@ -169,39 +162,38 @@ public:
             // the coords need to be normalized because on torus
             // topologies the coordinates may exceed the bounding box
             // (especially negative coordinates may occurr).
-            Coord<DIM> coord = Topology::normalize(i->origin, dimensions);
+            Coord<DIM> coord = Topology::normalize(i->origin, globalDimensions);
 	    int xlength = i->endX - i->origin.x();
 	    
-	    // GENERALISE TO DIM NOT EQUAL TO 2 (push back onto vector?)
+	    // To do: generalise
+	    start[0] = step; 
 	    start[1] = coord.y(); // Y start index for DIM = 2, or for Z for DIM = 3
+	    start[2] = 0; // X start index in 2D, = 0 for each streak iteration
+	    count[0] = 1;
+	    count[1] = 1; 
 	    count[2] = xlength;
 	    
 	    std::size_t byteSize = xlength;
 	    
-	    std::cout << "xlength = " + std::to_string(xlength) + '\n';
-	    
-            if (buffer.size() != byteSize) {
+	    if (buffer.size() != byteSize) {
                 buffer.resize(byteSize);
             }
 	    
             Region<DIM> tempRegion;
             tempRegion << *i;
-            grid.saveMember(&buffer[0], MemoryLocation::HOST, selector, tempRegion);
+            localGrid.saveMember(&buffer[0], MemoryLocation::HOST, selector, tempRegion);
 	    
 	    //  With HiPar simulator streaks isn of size (xlength) 1
 	    //  whereas with Striping simulator works fine (xlength = entire X-length of grid
-	    
-	    std::ostringstream debug;
-	    debug << "rank" << MPILayer().rank() << ": " << buffer << std::endl;
-	    std::cout << debug.str();
-	    
+
 	    netCDFVar.putVar_all(start, count, &buffer[0]);
+
 	}
     }
 
 private:
     MPIIO<CELL_TYPE, Topology> mpiio;
-    Coord<DIM> gridDimensions;
+    Coord<DIM> globalDimensions;
     Selector<CELL_TYPE> selector;
     MPI_Comm comm;
     MPI_Datatype datatype;
