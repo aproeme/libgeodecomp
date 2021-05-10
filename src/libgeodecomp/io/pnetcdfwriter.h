@@ -18,6 +18,7 @@
 #include <libgeodecomp/io/parallelwriter.h>
 #include <libgeodecomp/misc/clonable.h>
 #include <libgeodecomp/storage/selector.h>
+#include <libgeodecomp/io/mpiio.h>
 
 #include <filesystem>
 
@@ -39,8 +40,6 @@ template<typename CELL_TYPE>
 class PnetCDFWriter : public Clonable<ParallelWriter<CELL_TYPE>, PnetCDFWriter<CELL_TYPE> >
 {
 public:
-    friend class PnetCDFWriterTest;
-    
     using ParallelWriter<CELL_TYPE>::period;
     using ParallelWriter<CELL_TYPE>::prefix;
     
@@ -59,21 +58,21 @@ public:
 	globalDimensions(globalDimensions),
 	selector(selector),
 	steps(steps),
-	comm(communicator),
-	datatype(selector.mpiDatatype())
+	communicator(communicator)
 	{
 	    filename = selector.name() + ".nc";
 	    restartFilename = selector.name() + "_restart.nc";
-		
+	    
 	    createFile();
 	    writeHeader();
 
 	    createRestartFile();
 	    writeRestartHeader();
-	}
 
-    // stepFinished function signature based on that in parallelmpiiwriter.h,
-    // which conforms to that specified in parallelwriter.h
+	    writeCount = 0;
+	}
+  
+  // Only gets called by simulator when step == period for a given PnetCDFWriter's period
     virtual void stepFinished(
         const typename ParallelWriter<CELL_TYPE>::GridType& localGrid,
         const Region<Topology::DIM>& validRegion,
@@ -83,13 +82,14 @@ public:
         std::size_t rank,
         bool lastCall)
 	{
-	    if ((event == WRITER_STEP_FINISHED) && (step % period != 0))
+   	    if ((event == WRITER_STEP_FINISHED) && (step % period != 0))
 	    {
-		return;
+   	        return;
 	    }
 
 	    writeRegion(step, globalDimensions, localGrid, validRegion);
-
+	    writeCount++;
+	    
 	    if (step == steps)
 	    {
 		writeRestartRegion(globalDimensions, localGrid, validRegion);
@@ -98,7 +98,7 @@ public:
     
     void createFile()
 	{
-	    NcmpiFile ncFile(comm,
+	    NcmpiFile ncFile(communicator,
 			     filename,
 			     NcmpiFile::FileMode::replace,
 			     NcmpiFile::FileFormat::classic2);
@@ -107,7 +107,7 @@ public:
     
     void createRestartFile()
 	{
-	    NcmpiFile ncFile(comm,
+	    NcmpiFile ncFile(communicator,
 			     restartFilename,
 			     NcmpiFile::FileMode::replace,
 			     NcmpiFile::FileFormat::classic2);
@@ -117,7 +117,7 @@ public:
     
     void writeHeader()
 	{
-	    NcmpiFile ncFile(comm,
+	    NcmpiFile ncFile(communicator,
 			     filename,
 			     NcmpiFile::FileMode::write,
 			     NcmpiFile::FileFormat::classic2);
@@ -153,7 +153,7 @@ public:
     
     void writeRestartHeader()
 	{
-	    NcmpiFile ncFile(comm,
+	    NcmpiFile ncFile(communicator,
 			     restartFilename,
 			     NcmpiFile::FileMode::write,
 			     NcmpiFile::FileFormat::classic2);
@@ -183,20 +183,21 @@ public:
         const GRID_TYPE& localGrid,
         const Region<DIM>& region)
     {
-	NcmpiFile ncFile(comm,
+	NcmpiFile ncFile(communicator,
 			 filename,
 			 NcmpiFile::FileMode::write,
 			 NcmpiFile::FileFormat::classic2);
+
 	
 	NcmpiVar timeVar = NcmpiVar(ncFile, timeVarId);
 	float stepFloat = step;
-
+	
 	vector<MPI_Offset> index(1); 
-	index[0] = stepFloat; 
+	index[0] = writeCount;
 	timeVar.putVar_all(index, stepFloat);
 	
 	NcmpiVar netCDFVar = NcmpiVar(ncFile, varId);
-
+	
 	std::vector<double> buffer;
 	vector<MPI_Offset> start(DIM+1);
 	vector<MPI_Offset> count(DIM+1);
@@ -212,7 +213,7 @@ public:
 	    int xlength = i->endX - i->origin.x();
 	    
 	    // To do: generalise
-	    start[0] = step; 
+	    start[0] = writeCount;
 	    start[1] = coord.y(); // Y start index for DIM = 2, or for Z for DIM = 3
 	    start[2] = 0; // X start index in 2D, = 0 for each streak iteration
 	    count[0] = 1;
@@ -231,6 +232,8 @@ public:
 	    
 	    netCDFVar.putVar_all(start, count, &buffer[0]);
 	}
+
+	
     }
 
     
@@ -240,7 +243,7 @@ template<typename GRID_TYPE>
         const GRID_TYPE& localGrid,
         const Region<DIM>& region)
     {
-	NcmpiFile ncFile(comm,
+	NcmpiFile ncFile(communicator,
 			 restartFilename,
 			 NcmpiFile::FileMode::write,
 			 NcmpiFile::FileFormat::classic2);
@@ -300,11 +303,13 @@ private:
     MPIIO<CELL_TYPE, Topology> mpiio;
     Coord<DIM> globalDimensions;
     Selector<CELL_TYPE> selector;
-    MPI_Comm comm;
-    MPI_Datatype datatype;
+    MPI_Comm communicator;
     std::string filename, restartFilename;
     int varId, timeVarId, restartVarId;
     unsigned steps;
+    unsigned writeCount;
+
+  
     
 };
   

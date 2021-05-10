@@ -125,7 +125,7 @@ public:
 
 	    // Uncomment to debug
 	    //std::ostringstream debug1;
-	    //debug1 << "NetCDF read rank" << MPILayer().rank() << ": start=" << start << ", count=" << count << std::endl;
+	    //debug1 << "NetCDF read rank" << MPILayer().rank() << ": localGrid->boundingBox() = " << localGrid->boundingBox() <<  ", start=" << start << ", count=" << count << std::endl;
 	    //std::cout << debug1.str();
 	    
 	    std::vector<double> buffer;
