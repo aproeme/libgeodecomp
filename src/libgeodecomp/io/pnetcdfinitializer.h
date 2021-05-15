@@ -72,11 +72,16 @@ public:
 	    
 	    for(size_t i=0; i<netCDFSources.size(); i++)
 	    {
+		if (MPILayer().rank() == 0)
+		{
+		    std::cout << "Reading " << netCDFSources[i].variableName << " metada from netCDF header of " << netCDFSources[i].file << std::endl;
+		}
+		
 		NcmpiFile ncFile(MPI_COMM_WORLD,
 				 netCDFSources[i].file,
 				 NcmpiFile::FileMode::read,
 				 NcmpiFile::FileFormat::classic2);
-	    
+		
 		// To do: generalise (dimensions, dimension names, including long/lat)
 		NcmpiDim yDim = ncFile.getDim("y");
 		NcmpiDim xDim = ncFile.getDim("x");
@@ -98,9 +103,9 @@ public:
 			return;
 		    }
 		}
-
+		
 		// Add copy constructor to Coord class? 
-		globalDimensions = Coord<2>(sourceDimensions[0][0], sourceDimensions[0][1]));
+		globalDimensions = Coord<2>(sourceDimensions[0][0], sourceDimensions[0][1]);
 	    
 		if (MPILayer().rank() == 0)
 		{
@@ -157,8 +162,8 @@ public:
 			     NcmpiFile::FileMode::read,
 			     NcmpiFile::FileFormat::classic2);
 	    
-	    NcmpiVar ncVar = ncFile.getVar(ncSource.select.variableName);
-
+	    NcmpiVar ncVar = ncFile.getVar(ncSource.variableName);
+	    
 	    // get the first cell in this rank's grid,
 	    // determine its x and y coordinates,
 	    // use these to define start point and count
@@ -172,21 +177,11 @@ public:
 	    count[0] = box.dimensions.y();
 	    count[1] = box.dimensions.x();
 	    
-	    // Uncomment to debug
-	    //std::ostringstream debug1;
-	    //debug1 << "NetCDF read rank" << MPILayer().rank() << ": localGrid->boundingBox() = " << localGrid->boundingBox() <<  ", start=" << start << ", count=" << count << std::endl;
-	    //std::cout << debug1.str();
-	    
 	    std::vector<double> buffer;
 	    buffer.resize(count[0]*count[1]);
 	    
 	    ncVar.getVar_all(start, count, &buffer[0]);
-	    
-	    // Uncomment to debug
-	    //std::ostringstream debug2;
-	    //debug2 << "NetCDF read rank" << MPILayer().rank() << " netCDF read buffer: " << buffer << std::endl;
-	    //std::cout << debug2.str();
-	    
+
 	    localGrid->loadMember(&buffer[0], MemoryLocation::HOST, ncSource.selector, region);
 	}
     

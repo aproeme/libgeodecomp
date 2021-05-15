@@ -121,33 +121,38 @@ public:
 			     filename,
 			     NcmpiFile::FileMode::write,
 			     NcmpiFile::FileFormat::classic2);
-	    
+
 	    std::vector<std::string> ncmpiDimensionNames(4);
-            // ordered according to CF convention
 	    ncmpiDimensionNames[0] = "t";
-	    ncmpiDimensionNames[1] = "z";
+	    ncmpiDimensionNames[1] = "x";
 	    ncmpiDimensionNames[2] = "y";
-	    ncmpiDimensionNames[3] = "x";
-
+	    ncmpiDimensionNames[3] = "z";
+	    
 	    std::vector<NcmpiDim> ncmpiDimensions(DIM+1);
+	    
+	    for (int d = 0; d < DIM; d++) {
+		ncmpiDimensions[d] = ncFile.addDim(ncmpiDimensionNames[d+1], globalDimensions[d]);
+	    }
 
-	    // First define time dimension, T, to have unlimited extent
-	    ncmpiDimensions[0] = ncFile.addDim(ncmpiDimensionNames[0], NC_UNLIMITED);
-
-	    // Then define the other dimensions to have extents
-	    // defined by global LibGeoDecomp grid dimensions
-	    for (int d = 1; d <= DIM; d++) {
-		ncmpiDimensions[d] = ncFile.addDim(ncmpiDimensionNames[d+3-DIM], globalDimensions[DIM-d]);
+	    ncmpiDimensions[DIM] = ncFile.addDim(ncmpiDimensionNames[0], NC_UNLIMITED);
+	    
+	    // now change order to CF convention for actual netCDF variables
+	    std::vector<NcmpiDim> ncmpiDimensionsCF(DIM+1);
+	    ncmpiDimensionsCF[0] = ncmpiDimensions[DIM]; 
+	    
+	    for (int d = 1; d <= DIM; d++){
+		ncmpiDimensionsCF[d] = ncmpiDimensions[DIM-d];
 	    }
 	    
-	    NcmpiVar var = ncFile.addVar(selector.name(), ncmpiDouble, ncmpiDimensions);
-	    NcmpiVar timeVar = ncFile.addVar("time", ncmpiFloat, ncmpiDimensions[0]);
+	    NcmpiVar var = ncFile.addVar(selector.name(), ncmpiDouble, ncmpiDimensionsCF);
+	    varId = var.getId();
+
 	    // LibGeoDecomp uses unsigned int for time step, convert implicitly to float (ncmpiFloat) for now. 
 	    // If needed, can move to cdf-5 format in future, which supports unsigned ints
 	    // but which is not (yet) adopted widely 
-	    
-	    varId = var.getId();
+	    NcmpiVar timeVar = ncFile.addVar("time", ncmpiFloat, ncmpiDimensions[DIM]);
 	    timeVarId = timeVar.getId();
+	    
 	}
     
     
@@ -157,20 +162,26 @@ public:
 			     restartFilename,
 			     NcmpiFile::FileMode::write,
 			     NcmpiFile::FileFormat::classic2);
-	    
+
 	    std::vector<std::string> ncmpiDimensionNames(3);
-            // ordered according to CF convention
-	    ncmpiDimensionNames[0] = "z";
+	    ncmpiDimensionNames[0] = "x";
 	    ncmpiDimensionNames[1] = "y";
-	    ncmpiDimensionNames[2] = "x";
+	    ncmpiDimensionNames[2] = "z";
 	    
 	    std::vector<NcmpiDim> ncmpiDimensions(DIM);
 	    
 	    for (int d = 0; d < DIM; d++) {
-		ncmpiDimensions[d] = ncFile.addDim(ncmpiDimensionNames[d+3-DIM], globalDimensions[DIM-d-1]);
+		ncmpiDimensions[d] = ncFile.addDim(ncmpiDimensionNames[d], globalDimensions[d]);
 	    }
 	    
-	    NcmpiVar restartVar = ncFile.addVar(selector.name(), ncmpiDouble, ncmpiDimensions);
+	    // now change order to CF convention for actual netCDF variables
+	    std::vector<NcmpiDim> ncmpiDimensionsCF(DIM);
+	    	    
+	    for (int d = 0; d < DIM; d++){
+		ncmpiDimensionsCF[d] = ncmpiDimensions[DIM-d-1];
+	    }
+	    
+	    NcmpiVar restartVar = ncFile.addVar(selector.name(), ncmpiDouble, ncmpiDimensionsCF);
 	    restartVarId = restartVar.getId();
 	}
     
@@ -231,8 +242,7 @@ public:
             localGrid.saveMember(&buffer[0], MemoryLocation::HOST, selector, tempRegion);
 	    
 	    netCDFVar.putVar_all(start, count, &buffer[0]);
-	}
-
+        }
 	
     }
 
